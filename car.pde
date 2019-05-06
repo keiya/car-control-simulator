@@ -77,47 +77,49 @@ class Car {
   
   // Lng = Longitudinal direction
   // Hrz = Horizontal direction (skidding)
-  float vehicleALng, vehicleAHrz, vehicleVLat, vehicleVHrz;
+  float vehicleALng, vehicleAHrz, vehicleVLng, vehicleVHrz;
   
   float throttle, brake, steering;
   float halfWidth = width/2;
   
-  Car (float _x, float _y, float _vx, float _vy, float _ax, float _ay, float _heading, float _headingRate) {
+  Car (float _x, float _y, float _vehicleVLng, float _vehicleVHrz, float _vehicleALng, float _vehicleAHrz, float _heading, float _headingRate) {
     x = _x;
     y = _y;
-    v = sqrt(pow(_vx,2) + pow(_vy,2));
-    vx = _vx;
-    vy = _vy;
-    ax = _ax;
-    ay = _ay;
+    vehicleVLng = _vehicleVLng;
+    vehicleVHrz = _vehicleVHrz;
+    vehicleALng = _vehicleALng;
+    vehicleAHrz = _vehicleAHrz;
+    calcWorldCoordinate();
     heading = _heading;
     headingRate = _headingRate;
+  }
+  
+  void calcWorldCoordinate() {
+    ay = sin(heading)*vehicleAHrz - cos(heading)*vehicleALng;
+    ax = cos(heading)*vehicleAHrz + sin(heading)*vehicleALng;
+    vx = vx + ax;
+    vy = vy + ay;
+    x = x + vx;
+    y = y + vy;
   }
   
   void update(float steering, float throttle, float brake) {
     headingRate = steering * 0.01;
     heading = (heading + headingRate)%TWO_PI;
     
-    vehicleALng = sin(heading)*ax - cos(heading)*ay;
-    vehicleAHrz = cos(heading)*ax - sin(heading)*ay;
-    println(vehicleAHrz);
-    
+    float decelerationLng = 0;
+    if (vehicleVLng > 0) {
+      decelerationLng = brake * 0.01;
+    }
+    vehicleALng = throttle * 0.01 - decelerationLng;
+    vehicleVLng = vehicleVLng + vehicleALng;
+
+    println(vehicleVLng);
+    calcWorldCoordinate();
     a = sqrt(pow(ax,2) + pow(ay,2));
     v = sqrt(pow(vx,2) + pow(vy,2));
-    float decelerationX = 0;
-    float decelerationY = 0;
 
-    if (v > 0) {
-      decelerationX = sin(heading)*brake*0.01;
-      decelerationY = cos(heading)*brake*0.01;
-    }
-    ax = sin(heading)*throttle * 0.01 - decelerationX;
-    ay = - (cos(heading)*throttle * 0.01 - decelerationY);
-    vx = vx + ax;
-    vy = vy + ay;
-    x = x + vx;
-    y = y + vy;
-    heading = 0;//heading + headingRate;
+    heading = heading + headingRate;
   }
   
   void draw() {
