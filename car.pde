@@ -75,6 +75,8 @@ class Control {
 }
 
 class Car {
+  final float accelerationFadeout = 0.05;
+
   float x, y, vx, vy, ax, ay, heading, a, v;
   double headingRate;
   float slipAngle;
@@ -92,7 +94,7 @@ class Car {
     y = _y;
     vehicleVLng = _vehicleVLng;
     vehicleVHrz = _vehicleVHrz;
-    lastVehicleVHrz = vehicleVHrz;
+    lastVehicleVHrz = 0;
     vehicleALng = _vehicleALng;
     vehicleAHrz = _vehicleAHrz;
     calcWorldCoordinate();
@@ -118,23 +120,18 @@ class Car {
   }
   
   void calcWorldCoordinate() {
-    if (slipAngle > 0 || slipAngle < 0) {
-      // car can't move horizontally.
-      // friction applys to horizontal movement
-      vehicleAHrz = -(vehicleVHrz - lastVehicleVHrz)/2;
-      lastVehicleVHrz = vehicleVHrz;
-    }
-
     ax = cos((float)heading)*(float)vehicleAHrz + sin((float)heading)*(float)vehicleALng;
     ay = sin((float)heading)*(float)vehicleAHrz - cos((float)heading)*(float)vehicleALng;
 
-    float dx = sin((float)heading)*(float)vehicleVLng;
-    float dy = -cos((float)heading)*(float)vehicleVLng;
+    float dx = 0; //sin((float)heading)*(float)vehicleVLng;
+    float dy = 0; //-cos((float)heading)*(float)vehicleVLng;
 
     vx += ax;
     vy += ay;
     x += vx + dx;
     y += vy + dy;
+    a = sqrt(pow(ax,2) + pow(ay,2));
+    v = sqrt(pow(vx,2) + pow(vy,2));
   }
   
   void update(double steering, double throttle, double brake) {
@@ -146,40 +143,70 @@ class Car {
     //vehicleVHrz = vehicleVHrz + vehicleAHrz;
 
     vehicleALng = - (vehicleALng * abs((float)steering));
-
-    double decelerationLng = 0;
-    if (vehicleVLng > 0) {
-      decelerationLng = decelerationLng + brake * 0.01;
-    }
-    vehicleALng = throttle * 0.01 - decelerationLng;
+    vehicleALng = throttle * 0.01 - min(abs((float)vehicleVLng), accelerationFadeout) * brake * 0.2;
     vehicleVLng = vehicleVLng + vehicleALng;
 
+    // nx, ny = normalized vector
     v = sqrt(pow(vx,2) + pow(vy,2));
     float nx = vx / v;
     float ny = vy / v;
-    
+    nx = Float.isNaN(nx) ? 0 : nx;
+    ny = Float.isNaN(ny) ? 0 : ny;
+
     pushMatrix();
     translate(x,y);
     float vectorHdg = (atan2(ny * height,nx * width) + HALF_PI)%TWO_PI;
     popMatrix();
 
     slipAngle = vectorHdg - heading;
-
     vehicleVHrz = v * sin(slipAngle);
 
+    //calcLongitudinalDrag();
+    //calcHorizontalDrag();
+
     calcWorldCoordinate();
-    a = sqrt(pow(ax,2) + pow(ay,2));
-    v = sqrt(pow(vx,2) + pow(vy,2));
+  }
+
+  void calcLongitudinalDrag() {
+    double decelerationLng = 0;
+    float carGoingTo = 0;
+    if (vehicleVLng > accelerationFadeout) {
+      carGoingTo = 1;
+    } else if (vehicleVLng < -accelerationFadeout) {
+      carGoingTo = -1;
+    }
+    decelerationLng = pow((float)vehicleVLng,2) * 0.01 // drag
+                    + 0.001; // (Rolling resistance + engine braking) while no gas pedal, no brake
+    vehicleALng -= (decelerationLng * carGoingTo);
+        println(carGoingTo, (decelerationLng * carGoingTo));
+  }
+
+  void calcHorizontalDrag() {
+    if (slipAngle > 0 || slipAngle < 0) {
+      // car can't move horizontally.
+      // friction applys to horizontal movement
+      vehicleAHrz = -(vehicleVHrz - lastVehicleVHrz)/2;
+    } else {
+      vehicleAHrz = 0;
+    }
+    println(vehicleAHrz,slipAngle);
+    lastVehicleVHrz = vehicleVHrz;
   }
   
   void draw() {
     pushMatrix();
     translate(x, y);
     rotate(heading);
+    stroke(0, 0, 0);
     triangle(10, 0, 5, 25, 15, 25);
     popMatrix();
-    
-    fill(0,255,0);
+
+    stroke(255,0,0);
+    line(x, y, x+ax*5000, y+ay*5000);
+
+    stroke(0,0,255);
+    line(x, y, x+vx*100, y+vy*100);
+   
     textAlign(LEFT);
     text("aL", halfWidth-100, height-15); // vehicle longitudinal acceleration
     text("aH", halfWidth-100, height-5); // vehicle horizontal acceleration
@@ -187,6 +214,7 @@ class Car {
     text("vH", halfWidth-40, height-5); // vehicle horizontal velocity
     text("HDG", halfWidth+20, height-15); // vehicle heading
     text("HDGRate", halfWidth+20, height-5); // vehicle heading turn rate
+
 
     textAlign(RIGHT);
     text((float)vehicleALng, halfWidth-45, height-15);
